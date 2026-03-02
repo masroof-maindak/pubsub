@@ -56,7 +56,7 @@ build-broker:
 
 [group('build')]
 clean:
-    rm -rf bin/
+    rm -rf broker/bin/
     rm -rf broker/info.log broker/error.log broker/broker.db
 
 # --- Quality & Linting ---
