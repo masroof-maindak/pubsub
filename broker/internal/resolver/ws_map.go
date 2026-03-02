@@ -66,11 +66,13 @@ func OnSubscriberSubscribe(
 
 	topicSubcribers, ok := m.conns[topic]
 	if !ok {
+		m.mu.Unlock()
 		return fmt.Errorf("Topic doesn't exist.")
 	}
 	topicSubcribers = append(topicSubcribers, &SubscriberConn{ws, errChan})
+	m.conns[topic] = topicSubcribers
 
-	defer m.mu.Unlock()
+	m.mu.Unlock()
 
 	lastMsg, err := db.GetLatestMessage(topic)
 	if err != nil {
