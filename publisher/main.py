@@ -51,7 +51,7 @@ async def start_publisher(host: str, port: int):
     except KeyboardInterrupt:
         print("\nPublisher shutting down.")
     finally:
-        print("\nConnection closed. Goodbye!")
+        print("\nConnection closed.")
 
 
 if __name__ == "__main__":
