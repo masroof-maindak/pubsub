@@ -86,7 +86,9 @@ func run(ctx context.Context) error {
 	}()
 
 	var wg sync.WaitGroup
-	wg.Go(func() {
+	wg.Add(1)
+
+	go func() {
 		defer wg.Done()
 		<-ctx.Done()
 
@@ -96,7 +98,7 @@ func run(ctx context.Context) error {
 		if err := httpServer.Shutdown(shutdownCtx); err != nil {
 			logger.Log.Error().Err(err).Msg("Failed to shutdown server")
 		}
-	})
+	}()
 
 	wg.Wait()
 
