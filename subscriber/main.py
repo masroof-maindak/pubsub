@@ -11,10 +11,10 @@ async def message_listener(websocket):
     """Background task to continuously listen for messages from the broker."""
     try:
         async for message in websocket:
-            print(f"\n[Incoming Message]: {message}")
-            print("> ", end="", flush=True)
-    except ConnectionClosed:
-        print("\nConnection to Broker closed by server.")
+            print(f"\n[RECEIVED] {message}")
+    except ConnectionClosed as e:
+        print(f"\nConnection closed: code={e.code}, reason={e.reason}")
+        raise
 
 
 async def start_subscriber(host: str, port: int):
@@ -22,16 +22,17 @@ async def start_subscriber(host: str, port: int):
 
     try:
         async with websockets.connect(uri) as websocket:
-            print(f"Connected to Broker as Subscriber at {uri}")
+            print(f"Connected to Broker at {uri}")
+            print("Type 'exit' to quit.\n")
 
-            # Start background listener for incoming messages
+            # start background listener for incoming messages
             listener_task = asyncio.create_task(message_listener(websocket))
 
             while True:
                 # Ask action
                 action = await questionary.select(
-                    "What would you like to do?",
-                    choices=["SUBSCRIBE", "UNSUBSCRIBE", "Exit"],
+                    "Action:",
+                    choices=["SUBSCRIBE", "UNSUBSCRIBE", "exit"],
                 ).ask_async()
 
                 if action == "Exit" or action is None:
@@ -52,6 +53,7 @@ async def start_subscriber(host: str, port: int):
                     await websocket.send(json.dumps(payload))
                     print(f"Command sent: {action} {topic.strip()}")
                 except ConnectionClosed:
+                    print("\nConnection to Broker lost.")
                     break
 
             # Cleanup
@@ -63,10 +65,10 @@ async def start_subscriber(host: str, port: int):
 
     except (ConnectionRefusedError, OSError):
         print(f"Could not connect to Broker at {uri}.")
-    except Exception as e:
-        print(f"An error occurred: {e}")
-    finally:
+    except KeyboardInterrupt:
         print("\nSubscriber shutting down.")
+    finally:
+        print("\nConnection closed.")
 
 
 if __name__ == "__main__":
