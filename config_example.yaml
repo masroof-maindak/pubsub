@@ -1,0 +1,8 @@
+app:
+  name: "musannif"
+  sqlite_directory: "/var/db/musannif/"
+  log_directory: "/var/log/musannif/"
+  environment: "debug"
+server:
+  host: "localhost"
+  port: 8242
