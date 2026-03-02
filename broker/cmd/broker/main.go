@@ -18,6 +18,7 @@ import (
 	"github.com/masroof-maindak/pubsub/internal/db"
 	"github.com/masroof-maindak/pubsub/internal/logger"
 	"github.com/masroof-maindak/pubsub/internal/middlewares"
+	"github.com/masroof-maindak/pubsub/internal/resolver"
 	"github.com/masroof-maindak/pubsub/internal/routes"
 )
 
@@ -97,7 +98,7 @@ func run(ctx context.Context) error {
 		defer wg.Done()
 		<-ctx.Done()
 
-		shutdownCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		shutdownCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
 		defer cancel()
 
 		if err := httpServer.Shutdown(shutdownCtx); err != nil {

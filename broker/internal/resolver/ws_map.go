@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/masroof-maindak/pubsub/internal/db"
+	"github.com/masroof-maindak/pubsub/internal/logger"
 
 	"github.com/gorilla/websocket"
 )
@@ -85,6 +86,9 @@ func OnSubscriberSubscribe(
 			return fmt.Errorf("failed to send history: %w", err)
 		}
 	}
+
+	// TEMPORARY
+	// TODO: print current count of all lists
 
 	return nil
 }
