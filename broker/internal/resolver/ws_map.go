@@ -33,7 +33,6 @@ func OnSubscriberConnect(
 	r *http.Request,
 	readerFinished chan error,
 ) {
-
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -121,7 +120,6 @@ func OnSubscriberUnsubscribe(
 				wsIdxInSearchTopic = wsIdx
 			}
 		}
-
 	}
 
 	// Remove ws from that topic
