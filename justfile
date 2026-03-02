@@ -27,25 +27,25 @@ subscriber:
 run-tmux:
     @# Kill existing session if it exists + start anew
     tmux kill-session -t pubsub 2>/dev/null || true
-    tmux new-session -d -s pubsub -n 'programs'
+    tmux new-session -d -s pubsub -n 'progs'
 
     @# Broker
-    tmux send-keys -t pubsub:programs.0 'just broker' C-m
+    tmux send-keys -t pubsub:progs.0 'just broker' C-m
 
     @# Subscriber
-    tmux split-window -h -t pubsub:programs
-    tmux send-keys -t pubsub:programs.1 'sleep 1 && just subscriber' C-m
+    tmux split-window -h -t pubsub:progs
+    tmux send-keys -t pubsub:progs.1 'sleep 1 && just subscriber' C-m
 
     @# Publisher
-    tmux split-window -v -t pubsub:programs.1
-    tmux send-keys -t pubsub:programs.2 'sleep 1 && just publisher' C-m
+    tmux split-window -v -t pubsub:progs.1
+    tmux send-keys -t pubsub:progs.2 'sleep 1 && just publisher' C-m
 
     @# Open nvim in second window
-    tmux new-window -t pubsub:2 -n 'nvim'
-    tmux send-keys -t pubsub:editor 'nvim .' C-m
+    tmux new-window -t pubsub:2 -n 'edit'
+    tmux send-keys -t pubsub:edit 'nvim' C-m
 
-    @# Open running programs
-    tmux select-window -t pubsub:programs
+    @# Open running progs
+    tmux select-window -t pubsub:progs
     tmux attach-session -t pubsub
 
 # --- Build & Maintenance ---
