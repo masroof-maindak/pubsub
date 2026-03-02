@@ -132,7 +132,7 @@ func readFromWs(ws *websocket.Conn, readerFinished chan error, ct utils.ClientTy
 
 			switch action {
 			case "SUBSCRIBE":
-				actionErr = resolver.OnSubscriberSubscribe(ws, &readerFinished, topic)
+				actionErr = resolver.OnSubscriberSubscribe(ws, readerFinished, topic)
 				if actionErr != nil {
 					actionErr = fmt.Errorf("failed to subscribe to topic [%s] w/ err: %w", topic, actionErr)
 				}

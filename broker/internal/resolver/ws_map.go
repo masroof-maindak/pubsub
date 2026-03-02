@@ -11,34 +11,27 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-type SubscriberConn struct {
-	socket  *websocket.Conn
-	errChan *chan error
-}
-
 type TopicMap struct {
 	mu    sync.Mutex
-	conns map[string][]*SubscriberConn
+	conns map[string][]*websocket.Conn
 }
 
 var (
 	m = TopicMap{
-		conns: make(map[string][]*SubscriberConn),
+		conns: make(map[string][]*websocket.Conn),
 	}
 
-	unsubscribed []*SubscriberConn
+	unsubscribed []*websocket.Conn
 )
 
 func OnSubscriberConnect(
 	ws *websocket.Conn,
 	r *http.Request,
-	readerFinished chan error,
 ) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	sc := SubscriberConn{ws, &readerFinished}
-	unsubscribed = append(unsubscribed, &sc)
+	unsubscribed = append(unsubscribed, ws)
 }
 
 func OnSubscriberDisconnect(
@@ -47,19 +40,21 @@ func OnSubscriberDisconnect(
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if removeWsFromSliceIfExists(ws, unsubscribed) {
+	ok := false
+	unsubscribed, ok = removeWsFromSliceIfExists(ws, unsubscribed)
+	if ok {
 		return
 	}
 
 	// If it wasn't in the 'unsubscribed' list, then iterate through all topics, find the correct ws, and remove it
-	for _, topicSubcribers := range m.conns {
-		removeWsFromSliceIfExists(ws, topicSubcribers)
+	for t, topicSubcribers := range m.conns {
+		updatedSubs, _ := removeWsFromSliceIfExists(ws, topicSubcribers)
+		m.conns[t] = updatedSubs
 	}
 }
 
 func OnSubscriberSubscribe(
 	ws *websocket.Conn,
-	errChan *chan error,
 	topic string,
 ) error {
 	m.mu.Lock()
@@ -69,7 +64,7 @@ func OnSubscriberSubscribe(
 		m.mu.Unlock()
 		return fmt.Errorf("Topic doesn't exist.")
 	}
-	topicSubcribers = append(topicSubcribers, &SubscriberConn{ws, errChan})
+	topicSubcribers = append(topicSubcribers, ws)
 	m.conns[topic] = topicSubcribers
 
 	m.mu.Unlock()
@@ -114,12 +109,12 @@ func OnSubscriberUnsubscribe(
 		wsIdx := 0
 		wsIdx = getWsIndexInSlice(ws, topicSubcribers)
 
-		if wsIdx != -1 {
-			count += 1
+		if wsIdx == -1 { // not found
 			if t == topic {
 				return fmt.Errorf("Topic was never subscribed to in the first place!")
 			}
-		} else {
+		} else { // found
+			count += 1
 			if t == topic {
 				wsIdxInSearchTopic = wsIdx
 			}
@@ -127,12 +122,13 @@ func OnSubscriberUnsubscribe(
 	}
 
 	// Remove ws from that topic
-	ret := removeWsFromSlice(wsIdxInSearchTopic, topicSubcribers)
+	topicSubcribers, removedSc := removeWsFromSlice(wsIdxInSearchTopic, topicSubcribers)
+	m.conns[topic] = topicSubcribers
 	count -= 1
 
 	// If ws is in no more topics, add it to unsubscribed
 	if count == 0 {
-		unsubscribed = append(unsubscribed, ret)
+		unsubscribed = append(unsubscribed, removedSc)
 	}
 
 	return nil
@@ -146,42 +142,40 @@ func OnPublisherPublish(topic string, message string) {
 	}
 
 	m.mu.Lock()
-	defer m.mu.Unlock()
 
 	// Create topic if not exists
 	topicSubcribers, ok := m.conns[topic]
 	if !ok {
-		m.conns[topic] = make([]*SubscriberConn, 0)
+		m.conns[topic] = make([]*websocket.Conn, 0)
 		topicSubcribers = m.conns[topic]
 	}
+	m.mu.Unlock()
 
 	// Ping all topic subscribers
-	for _, sc := range topicSubcribers {
-		ws := sc.socket
+	for _, ws := range topicSubcribers {
 		err := ws.WriteMessage(websocket.TextMessage, []byte(message))
 		if err != nil {
-			// TODO: log error if not of type 'client unreachable'
 			OnSubscriberDisconnect(ws)
 		}
 	}
 }
 
-func removeWsFromSliceIfExists(ws *websocket.Conn, s []*SubscriberConn) bool {
+func removeWsFromSliceIfExists(ws *websocket.Conn, s []*websocket.Conn) ([]*websocket.Conn, bool) {
 	i := getWsIndexInSlice(ws, s)
 
 	if i != -1 {
-		removeWsFromSlice(i, s)
-		return true
+		s, _ = removeWsFromSlice(i, s)
+		return s, true
 	}
 
-	return false
+	return s, false
 }
 
-func getWsIndexInSlice(ws *websocket.Conn, s []*SubscriberConn) int {
+func getWsIndexInSlice(ws *websocket.Conn, sockets []*websocket.Conn) int {
 	i := -1
 
-	for idx, sc := range s {
-		if sc.socket == ws {
+	for idx, websocket := range sockets {
+		if websocket == ws {
 			i = idx
 		}
 	}
@@ -189,11 +183,11 @@ func getWsIndexInSlice(ws *websocket.Conn, s []*SubscriberConn) int {
 	return i
 }
 
-func removeWsFromSlice(i int, s []*SubscriberConn) *SubscriberConn {
-	ret := s[i]
+func removeWsFromSlice(i int, s []*websocket.Conn) ([]*websocket.Conn, *websocket.Conn) {
+	val := s[i]
 	s[i] = s[len(s)-1]
 	s = s[:len(s)-1]
-	return ret
+	return s, val
 }
 
 func LoadTopicsFromDB() error {
@@ -206,7 +200,7 @@ func LoadTopicsFromDB() error {
 	defer m.mu.Unlock()
 
 	for _, t := range topics {
-		m.conns[t] = make([]*SubscriberConn, 0)
+		m.conns[t] = make([]*websocket.Conn, 0)
 	}
 
 	return nil
