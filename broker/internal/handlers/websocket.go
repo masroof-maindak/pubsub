@@ -60,14 +60,16 @@ func wsSubscriberTransmission(ws *websocket.Conn, r *http.Request, ct utils.Clie
 		}
 
 		pingTicker.Stop()
-		ws.Close()
+
+		close(stopReading)
 	}()
 
 	go readFromWs(ws, stopReading, ct)
 
 	for {
 		select {
-		case reason := <-stopReading: // if someone signalled the end of reading or wants us to be closed
+		case reason := <-stopReading: // Hit when this is chan is closed from the other side
+			logger.Log.Info().Err(reason).Msg("WS reading stopped")
 			return reason
 		case <-pingTicker.C: // Send sporadic pings
 			err := ws.WriteControl(
@@ -84,8 +86,6 @@ func wsSubscriberTransmission(ws *websocket.Conn, r *http.Request, ct utils.Clie
 }
 
 func readFromWs(ws *websocket.Conn, readerFinished chan error, ct utils.ClientType) {
-	defer close(readerFinished)
-
 	ws.SetReadDeadline(time.Now().Add(pongWait))
 	ws.SetPongHandler(func(appdata string) error {
 		ws.SetReadDeadline(time.Now().Add(pongWait))
@@ -114,6 +114,8 @@ func readFromWs(ws *websocket.Conn, readerFinished chan error, ct utils.ClientTy
 			if !ok1 && !ok2 {
 				closeErr := fmt.Errorf("json object didn't contain key 'text'")
 
+				logger.Log.Error().Err(closeErr)
+
 				err := utils.WriteCloseMsg(ws, websocket.CloseUnsupportedData, closeErr)
 
 				if err != nil {
@@ -125,20 +127,27 @@ func readFromWs(ws *websocket.Conn, readerFinished chan error, ct utils.ClientTy
 				break
 			}
 
-			if action == "SUBSCRIBE" {
-				err = resolver.OnSubscriberSubscribe(ws, &readerFinished, topic)
-				if err != nil {
-					readerFinished <- fmt.Errorf("resolver failed to subscribe to topic [%s] w/ err: %w", topic, err)
-					break
+			// Subscribe or unsubscribe
+			var actionErr error = nil
+
+			switch action {
+			case "SUBSCRIBE":
+				actionErr = resolver.OnSubscriberSubscribe(ws, &readerFinished, topic)
+				if actionErr != nil {
+					actionErr = fmt.Errorf("failed to subscribe to topic [%s] w/ err: %w", topic, actionErr)
 				}
-			} else if action == "UNSUBSCRIBE" {
-				err = resolver.OnSubscriberUnsubscribe(ws, topic)
-				if err != nil {
-					readerFinished <- fmt.Errorf("resolver failed to unsubscribe from topic [%s] w/ err: %w", topic, err)
-					break
+			case "UNSUBSCRIBE":
+				actionErr = resolver.OnSubscriberUnsubscribe(ws, topic)
+				if actionErr != nil {
+					actionErr = fmt.Errorf("failed to unsubscribe from topic [%s] w/ err: %w", topic, actionErr)
 				}
-			} else {
-				readerFinished <- fmt.Errorf("Invalid action provided. Valid options are SUBSCRIBE or UNSUBSCRIBE")
+			default:
+				actionErr = fmt.Errorf("Invalid action provided. Valid options are SUBSCRIBE or UNSUBSCRIBE")
+			}
+
+			if actionErr != nil {
+				utils.WriteCloseMsg(ws, websocket.CloseUnsupportedData, actionErr)
+				readerFinished <- actionErr
 				break
 			}
 
