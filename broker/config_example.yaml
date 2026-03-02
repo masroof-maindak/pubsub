@@ -1,7 +1,7 @@
 app:
-  name: "musannif"
-  sqlite_directory: "/var/db/musannif/"
-  log_directory: "/var/log/musannif/"
+  name: "pubsub"
+  sqlite_directory: "/var/db/pubsub/"
+  log_directory: "/var/log/pubsub/"
   environment: "debug"
 server:
   host: "localhost"
