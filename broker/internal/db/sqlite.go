@@ -99,4 +99,23 @@ func CleanupDb() error {
 	return nil
 }
 
-// TODO: update latest message against topic
+func SaveLatestMessage(topic string, msg string) error {
+	_, err := db.Exec(queries.UpdateLatestMsgMsgStatement, topic, msg)
+	if err != nil {
+		return fmt.Errorf("failed to save latest message: %w", err)
+	}
+	return nil
+}
+
+func GetLatestMessage(topic string) (string, error) {
+	var msg sql.NullString
+	err := db.QueryRow(queries.GetLatestMsgStatement, topic).Scan(&msg)
+	if err == sql.ErrNoRows {
+		return "", nil // No history yet
+	}
+
+	if err != nil {
+		return "", fmt.Errorf("failed to get latest message: %w", err)
+	}
+	return msg.String, nil
+}

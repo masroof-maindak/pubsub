@@ -7,3 +7,13 @@ CREATE TABLE IF NOT EXISTS TopicMsgs (
     msg TEXT NULL
 );
 `
+
+const UpdateLatestMsgMsgStatement string = `
+INSERT INTO TopicMsgs (name, msg)
+VALUES (?, ?)
+ON CONFLICT(name) DO UPDATE SET msg=excluded.msg;
+`
+
+const GetLatestMsgStatement string = `
+SELECT msg FROM TopicMsgs WHERE name = ?;
+`

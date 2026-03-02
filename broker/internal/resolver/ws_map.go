@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"sync"
 
+	"github.com/masroof-maindak/pubsub/internal/db"
+
 	"github.com/gorilla/websocket"
 )
 
@@ -61,19 +63,29 @@ func OnSubscriberSubscribe(
 	topic string,
 ) error {
 	m.mu.Lock()
+
+	topicSubcribers, ok := m.conns[topic]
+	if !ok {
+		return fmt.Errorf("Topic doesn't exist.")
+	}
+	topicSubcribers = append(topicSubcribers, &SubscriberConn{ws, errChan})
+
 	defer m.mu.Unlock()
 
-	for t, topicSubcribers := range m.conns {
-		if t == topic {
-			topicSubcribers = append(topicSubcribers, &SubscriberConn{ws, errChan})
-			return nil
+	lastMsg, err := db.GetLatestMessage(topic)
+	if err != nil {
+		return err
+	}
+
+	if lastMsg != "" {
+		historyPayload := fmt.Sprintf("[HISTORY] %s", lastMsg)
+		err = ws.WriteMessage(websocket.TextMessage, []byte(historyPayload))
+		if err != nil {
+			return fmt.Errorf("failed to send history: %w", err)
 		}
 	}
 
-	// TODO: query DB for latest message in this topic;
-	// If one exists, write it to this websocket
-
-	return fmt.Errorf("Topic doesn't exist.")
+	return nil
 }
 
 func OnSubscriberUnsubscribe(
@@ -123,6 +135,13 @@ func OnSubscriberUnsubscribe(
 }
 
 func OnPublisherPublish(topic string, message string) {
+	// Save message to DB
+	err := db.SaveLatestMessage(topic, message)
+	if err != nil {
+		// We log it but continue to publish the live message
+		fmt.Printf("Database error: %v\n", err)
+	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
