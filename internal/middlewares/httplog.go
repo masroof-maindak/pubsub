@@ -2,6 +2,7 @@ package middlewares
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/MadAppGang/httplog"
 	"github.com/gorilla/websocket"
@@ -11,8 +12,7 @@ func ConditionalLogger(next http.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		// If websocket connection, skip `httplogger`
-		// TODO: use variable for route
-		if r.URL.Path == "/connect" && websocket.IsWebSocketUpgrade(r) {
+		if strings.HasPrefix(r.URL.Path, "/ws-conn") && websocket.IsWebSocketUpgrade(r) {
 			next.ServeHTTP(w, r)
 			return
 		}

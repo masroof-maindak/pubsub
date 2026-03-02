@@ -9,6 +9,6 @@ import (
 )
 
 func AddRoutes(mux *http.ServeMux, cfg *config.AppConfig) {
-	mux.HandleFunc("/connect-pub", handlers.CreateWsConn(utils.Publisher))
-	mux.HandleFunc("/connect-sub", handlers.CreateWsConn(utils.Subscriber))
+	mux.HandleFunc("/ws-conn-pub", handlers.CreateWsConn(utils.Publisher))
+	mux.HandleFunc("/ws-conn-sub", handlers.CreateWsConn(utils.Subscriber))
 }
