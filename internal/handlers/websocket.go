@@ -82,7 +82,6 @@ func wsSubscriberTransmission(ws *websocket.Conn, r *http.Request) error {
 	}
 }
 
-// FIXME
 func readFromSubscriberWs(ws *websocket.Conn, readerFinished chan error) {
 	defer close(readerFinished)
 
@@ -95,7 +94,7 @@ func readFromSubscriberWs(ws *websocket.Conn, readerFinished chan error) {
 	for {
 		var msgJson map[string]any
 
-		// Blocks on read call. Closes return an error here.
+		// Blocks on read call. When the channel is closed, an error is returned here.
 		err := ws.ReadJSON(&msgJson)
 		if err != nil {
 			if _, ok := err.(*websocket.CloseError); ok {
@@ -106,10 +105,11 @@ func readFromSubscriberWs(ws *websocket.Conn, readerFinished chan error) {
 			break
 		}
 
-		// TODO: Parse recieved message as 'SUBSCRIBE' or 'UNSUBSCRIBE'
+		// Parse recieved message as 'SUBSCRIBE' or 'UNSUBSCRIBE'
 		// Ensure topic is provided
-		textStr, ok := msgJson["text"].(string)
-		if !ok {
+		action, ok1 := msgJson["subscription"].(string)
+		topic, ok2 := msgJson["topic"].(string)
+		if !ok1 && !ok2 {
 			closeErr := fmt.Errorf("json object didn't contain key 'text'")
 
 			err := utils.WriteCloseMsg(ws, websocket.CloseUnsupportedData, closeErr)
@@ -123,10 +123,20 @@ func readFromSubscriberWs(ws *websocket.Conn, readerFinished chan error) {
 			break
 		}
 
-		// TODO: Propagate message to OnSubscriber{Un/Subscribe}
-		err = resolver.OnSubscriberSubscribe(ws, &readerFinished, textStr)
-		if err != nil {
-			readerFinished <- fmt.Errorf("resolver failed to write w/ err: %w", err)
+		if action == "SUBSCRIBE" {
+			err = resolver.OnSubscriberSubscribe(ws, &readerFinished, topic)
+			if err != nil {
+				readerFinished <- fmt.Errorf("resolver failed to subscribe to topic [%s] w/ err: %w", topic, err)
+				break
+			}
+		} else if action == "UNSUBSCRIBE" {
+			err = resolver.OnSubscriberUnsubscribe(ws, topic)
+			if err != nil {
+				readerFinished <- fmt.Errorf("resolver failed to unsubscribe from topic [%s] w/ err: %w", topic, err)
+				break
+			}
+		} else {
+			readerFinished <- fmt.Errorf("Invalid action provided. Valid options are SUBSCRIBE or UNSUBSCRIBE")
 			break
 		}
 	}
