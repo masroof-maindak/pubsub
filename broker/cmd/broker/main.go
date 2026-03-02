@@ -73,7 +73,7 @@ func run(ctx context.Context) error {
 	srv := newServer(&config.Cfg)
 
 	httpServer := &http.Server{
-		Addr:    net.JoinHostPort("localhost", strconv.Itoa(8243)),
+		Addr:    net.JoinHostPort(config.Cfg.Server.Host, strconv.Itoa(config.Cfg.Server.Port)),
 		Handler: srv,
 	}
 
