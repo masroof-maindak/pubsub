@@ -140,8 +140,7 @@ func OnPublisherPublish(topic string, message string) {
 	// Save message to DB
 	err := db.SaveLatestMessage(topic, message)
 	if err != nil {
-		// We log it but continue to publish the live message
-		fmt.Printf("Database error: %v\n", err)
+		logger.Log.Error().Err(err).Msg("Database error")
 	}
 
 	m.mu.Lock()
