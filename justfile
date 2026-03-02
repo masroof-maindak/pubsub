@@ -34,11 +34,11 @@ run-tmux:
 
     @# Subscriber
     tmux split-window -h -t pubsub:progs
-    tmux send-keys -t pubsub:progs.1 'sleep 1 && just subscriber' C-m
+    tmux send-keys -t pubsub:progs.1 'just subscriber' C-m
 
     @# Publisher
     tmux split-window -v -t pubsub:progs.1
-    tmux send-keys -t pubsub:progs.2 'sleep 1 && just publisher' C-m
+    tmux send-keys -t pubsub:progs.2 'just publisher' C-m
 
     @# Open nvim in second window
     tmux new-window -t pubsub:2 -n 'edit'
