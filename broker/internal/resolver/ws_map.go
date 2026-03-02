@@ -70,6 +70,9 @@ func OnSubscriberSubscribe(
 		}
 	}
 
+	// TODO: query DB for latest message in this topic;
+	// If one exists, write it to this websocket
+
 	return fmt.Errorf("Topic doesn't exist.")
 }
 
