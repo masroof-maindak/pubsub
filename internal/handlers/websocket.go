@@ -38,11 +38,7 @@ func CreateWsConn(ct utils.ClientType) http.HandlerFunc {
 		}
 		defer ws.Close()
 
-		if ct == utils.Subscriber {
-			err = wsSubscriberTransmission(ws, r)
-		} else {
-			// read from publisher
-		}
+		err = wsSubscriberTransmission(ws, r, ct)
 
 		if err != nil {
 			logger.Log.Err(err).Msg("websocket died")
@@ -50,19 +46,24 @@ func CreateWsConn(ct utils.ClientType) http.HandlerFunc {
 	}
 }
 
-func wsSubscriberTransmission(ws *websocket.Conn, r *http.Request) error {
+func wsSubscriberTransmission(ws *websocket.Conn, r *http.Request, ct utils.ClientType) error {
 	stopReading := make(chan error)
 	pingTicker := time.NewTicker(pingPeriod)
 
-	resolver.OnSubscriberConnect(ws, r, stopReading)
+	if ct == utils.Subscriber {
+		resolver.OnSubscriberConnect(ws, r, stopReading)
+	}
 
 	defer func() {
-		resolver.OnSubscriberDisconnect(ws)
+		if ct == utils.Subscriber {
+			resolver.OnSubscriberDisconnect(ws)
+		}
+
 		pingTicker.Stop()
 		ws.Close()
 	}()
 
-	go readFromSubscriberWs(ws, stopReading)
+	go readFromWs(ws, stopReading, ct)
 
 	for {
 		select {
@@ -82,7 +83,7 @@ func wsSubscriberTransmission(ws *websocket.Conn, r *http.Request) error {
 	}
 }
 
-func readFromSubscriberWs(ws *websocket.Conn, readerFinished chan error) {
+func readFromWs(ws *websocket.Conn, readerFinished chan error, ct utils.ClientType) {
 	defer close(readerFinished)
 
 	ws.SetReadDeadline(time.Now().Add(pongWait))
@@ -105,39 +106,63 @@ func readFromSubscriberWs(ws *websocket.Conn, readerFinished chan error) {
 			break
 		}
 
-		// Parse recieved message as 'SUBSCRIBE' or 'UNSUBSCRIBE'
-		// Ensure topic is provided
-		action, ok1 := msgJson["subscription"].(string)
-		topic, ok2 := msgJson["topic"].(string)
-		if !ok1 && !ok2 {
-			closeErr := fmt.Errorf("json object didn't contain key 'text'")
+		if ct == utils.Subscriber {
+			// Parse recieved message as 'SUBSCRIBE' or 'UNSUBSCRIBE'
+			// Ensure topic is provided
+			action, ok1 := msgJson["action"].(string)
+			topic, ok2 := msgJson["topic"].(string)
+			if !ok1 && !ok2 {
+				closeErr := fmt.Errorf("json object didn't contain key 'text'")
 
-			err := utils.WriteCloseMsg(ws, websocket.CloseUnsupportedData, closeErr)
+				err := utils.WriteCloseMsg(ws, websocket.CloseUnsupportedData, closeErr)
 
-			if err != nil {
-				readerFinished <- fmt.Errorf("failed to send close message: %w", err)
+				if err != nil {
+					readerFinished <- fmt.Errorf("failed to send close message: %w", err)
+				} else {
+					readerFinished <- closeErr
+				}
+
+				break
+			}
+
+			if action == "SUBSCRIBE" {
+				err = resolver.OnSubscriberSubscribe(ws, &readerFinished, topic)
+				if err != nil {
+					readerFinished <- fmt.Errorf("resolver failed to subscribe to topic [%s] w/ err: %w", topic, err)
+					break
+				}
+			} else if action == "UNSUBSCRIBE" {
+				err = resolver.OnSubscriberUnsubscribe(ws, topic)
+				if err != nil {
+					readerFinished <- fmt.Errorf("resolver failed to unsubscribe from topic [%s] w/ err: %w", topic, err)
+					break
+				}
 			} else {
-				readerFinished <- closeErr
-			}
-
-			break
-		}
-
-		if action == "SUBSCRIBE" {
-			err = resolver.OnSubscriberSubscribe(ws, &readerFinished, topic)
-			if err != nil {
-				readerFinished <- fmt.Errorf("resolver failed to subscribe to topic [%s] w/ err: %w", topic, err)
+				readerFinished <- fmt.Errorf("Invalid action provided. Valid options are SUBSCRIBE or UNSUBSCRIBE")
 				break
 			}
-		} else if action == "UNSUBSCRIBE" {
-			err = resolver.OnSubscriberUnsubscribe(ws, topic)
-			if err != nil {
-				readerFinished <- fmt.Errorf("resolver failed to unsubscribe from topic [%s] w/ err: %w", topic, err)
+
+		} else { // Publisher
+
+			// Parse recieved message as "topic", "text"
+			text, ok1 := msgJson["text"].(string)
+			topic, ok2 := msgJson["topic"].(string)
+			if !ok1 && !ok2 {
+				closeErr := fmt.Errorf("json object didn't contain key 'text' or 'topic'")
+
+				err := utils.WriteCloseMsg(ws, websocket.CloseUnsupportedData, closeErr)
+
+				if err != nil {
+					readerFinished <- fmt.Errorf("failed to send close message: %w", err)
+				} else {
+					readerFinished <- closeErr
+				}
+
 				break
 			}
-		} else {
-			readerFinished <- fmt.Errorf("Invalid action provided. Valid options are SUBSCRIBE or UNSUBSCRIBE")
-			break
+
+			// Send to subscribers
+			resolver.OnPublisherPublish(topic, text)
 		}
 	}
 }

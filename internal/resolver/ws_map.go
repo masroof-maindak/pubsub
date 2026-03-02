@@ -119,6 +119,28 @@ func OnSubscriberUnsubscribe(
 	return nil
 }
 
+func OnPublisherPublish(topic string, message string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Create topic if not exists
+	topicSubcribers, ok := m.conns[topic]
+	if !ok {
+		m.conns[topic] = make([]*SubscriberConn, 0)
+		topicSubcribers = m.conns[topic]
+	}
+
+	// Ping all topic subscribers
+	for _, sc := range topicSubcribers {
+		ws := sc.socket
+		err := ws.WriteMessage(websocket.TextMessage, []byte(message))
+		if err != nil {
+			// TODO: log error if not of type 'client unreachable'
+			OnSubscriberDisconnect(ws)
+		}
+	}
+}
+
 func removeWsFromSliceIfExists(ws *websocket.Conn, s []*SubscriberConn) bool {
 	i := getWsIndexInSlice(ws, s)
 
