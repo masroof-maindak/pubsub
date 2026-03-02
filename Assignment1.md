@@ -126,7 +126,7 @@ Implement one or more of the following advanced features for bonus points.
 Clearly document which features you implemented in your README.
 
 - [x] **Unsubscribe:** Implement an `UNSUBSCRIBE <topic_name>` command.
-- [ ] **Message History:** Implement a feature where a new subscriber can
+- [x] **Message History:** Implement a feature where a new subscriber can
       request the last known message for a topic upon subscribing. The broker
       would need to store the last message for each topic.
 - [ ] **Wildcard Subscriptions:** Allow a subscriber to subscribe to topics
