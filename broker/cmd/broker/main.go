@@ -40,6 +40,11 @@ func initialize() error {
 		log.Fatalf("error initializing db: %v\n", err)
 	}
 
+	err = resolver.LoadTopicsFromDB()
+	if err != nil {
+		log.Fatalf("error loading topics from db: %v\n", err)
+	}
+
 	return nil
 }
 

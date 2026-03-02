@@ -194,3 +194,19 @@ func removeWsFromSlice(i int, s []*SubscriberConn) *SubscriberConn {
 	s = s[:len(s)-1]
 	return ret
 }
+
+func LoadTopicsFromDB() error {
+	topics, err := db.GetAllTopics()
+	if err != nil {
+		return fmt.Errorf("Failed to get topics from DB: %w", err)
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for _, t := range topics {
+		m.conns[t] = make([]*SubscriberConn, 0)
+	}
+
+	return nil
+}

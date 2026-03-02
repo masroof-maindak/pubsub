@@ -119,3 +119,26 @@ func GetLatestMessage(topic string) (string, error) {
 	}
 	return msg.String, nil
 }
+
+func GetAllTopics() ([]string, error) {
+	rows, err := db.Query(queries.GetAllTopicsStatement)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch topics: %w", err)
+	}
+	defer rows.Close()
+
+	var topics []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, fmt.Errorf("failed to scan topic name: %w", err)
+		}
+		topics = append(topics, name)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration error: %w", err)
+	}
+
+	return topics, nil
+}

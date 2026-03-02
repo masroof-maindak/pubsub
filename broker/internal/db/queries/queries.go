@@ -17,3 +17,7 @@ ON CONFLICT(name) DO UPDATE SET msg=excluded.msg;
 const GetLatestMsgStatement string = `
 SELECT msg FROM TopicMsgs WHERE name = ?;
 `
+
+const GetAllTopicsStatement string = `
+SELECT name FROM TopicMsgs;
+`
